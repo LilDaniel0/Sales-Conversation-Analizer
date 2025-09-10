@@ -2,10 +2,12 @@
 Módulo para transcripción de audios usando OpenAI Whisper.
 """
 
-import requests
+import soundfile as sf
 from pathlib import Path
 from typing import Optional, Dict, Any
 import logging
+from openai import OpenAI
+import numpy as np
 
 # Configurar logging
 logging.basicConfig(level=logging.INFO)
@@ -17,32 +19,34 @@ class WhisperTranscriber:
 
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key
-        self.model = "gpt-4o-mini-audio-preview"
+        self.model = "gpt-4o-transcribe"
+
+    def convert_opus_to_wav(self, opus_path: str) -> str:
+        wav_path = opus_path.replace(".opus", ".wav")
+        # Read Opus file using soundfile
+        data, samplerate = sf.read(opus_path)
+        # Write as WAV with 16-bit PCM
+        sf.write(wav_path, data, samplerate, subtype="PCM_16")
+        return wav_path
 
     def transcribe_audio(
         self, audio_path: str, language: Optional[str] = None
     ) -> Dict[str, Any]:
-        """
-        Transcribe un archivo de audio usando la API de OpenAI.
-        """
         audio_file = Path(audio_path)
         if not audio_file.exists():
             raise FileNotFoundError(f"Archivo de audio no encontrado: {audio_path}")
-
-        url = "https://api.openai.com/v1/audio/transcriptions"
-        headers = {"Authorization": f"Bearer {self.api_key}"}
-        files = {"file": (audio_file.name, open(audio_file, "rb"), "audio/opus")}
-        data = {"model": self.model}
-        if language:
-            data["language"] = language
-
+        ext = audio_file.suffix.lower()
+        if ext == ".opus":
+            audio_path = self.convert_opus_to_wav(str(audio_file))
+        client = OpenAI(api_key=self.api_key)
         try:
-            logger.info(f"Transcribiendo (API): {audio_file.name}")
-            response = requests.post(url, headers=headers, files=files, data=data)
-            response.raise_for_status()
-            result = response.json()
+            logger.info(f"Transcribiendo (API): {Path(audio_path).name}")
+            with open(audio_path, "rb") as f:
+                tx = client.audio.transcriptions.create(
+                    file=f, model=self.model, response_format="text", language=language
+                )
             transcription_data = {
-                "text": result.get("text", "").strip(),
+                "text": tx.strip(),
                 "language": language or "unknown",
                 "segments": [],
                 "audio_path": str(audio_file),

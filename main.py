@@ -30,7 +30,6 @@ def main():
     # Usar configuración del archivo .env
     input_dir = str(Config.get_input_directory())
     text_file = str(Config.get_text_file())
-    model = Config.WHISPER_MODEL
     language = Config.WHISPER_LANGUAGE if Config.WHISPER_LANGUAGE else None
 
     try:

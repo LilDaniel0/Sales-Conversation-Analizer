@@ -16,10 +16,9 @@ class Config:
     # Directorio base del proyecto
     BASE_DIR = Path(__file__).parent.parent
 
-    # Configuración de Whisper
-    WHISPER_MODEL = os.getenv("WHISPER_MODEL", "base")
-    WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "es")
+    # Configuración de la API de OpenAI
     OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+    WHISPER_LANGUAGE = os.getenv("WHISPER_LANGUAGE", "es")
 
     # Rutas de archivos
     INPUT_DIRECTORY = os.getenv(
@@ -62,12 +61,9 @@ class Config:
         if not text_file.exists():
             errors.append(f"Archivo de texto no existe: {text_file}")
 
-        # Verificar modelo de Whisper
-        valid_models = ["tiny", "base", "small", "medium", "large"]
-        if cls.WHISPER_MODEL not in valid_models:
-            errors.append(
-                f"Modelo de Whisper inválido: {cls.WHISPER_MODEL}. Debe ser uno de: {valid_models}"
-            )
+        # Verificar API Key
+        if not cls.OPENAI_API_KEY:
+            errors.append("API Key de OpenAI no configurada en config.env")
 
         return len(errors) == 0, errors
 
@@ -77,7 +73,6 @@ class Config:
         print("=== Configuración del Proyecto ===")
         print(f"Directorio de entrada: {cls.get_input_directory()}")
         print(f"Archivo de texto: {cls.get_text_file()}")
-        print(f"Modelo Whisper: {cls.WHISPER_MODEL}")
         print(f"Idioma: {cls.WHISPER_LANGUAGE or 'Auto-detectar'}")
         print(f"Nivel de log: {cls.LOG_LEVEL}")
         print(f"API Key configurada: {'Sí' if cls.OPENAI_API_KEY else 'No'}")
