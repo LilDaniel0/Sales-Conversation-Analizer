@@ -26,7 +26,7 @@ class Config:
     )
     TEXT_FILE = os.getenv(
         "TEXT_FILE",
-        "input_data/Chat de WhatsApp con Hermano/Chat de WhatsApp con Hermano.txt",
+        "input_data/whatsapp_chats/Chat.txt",
     )
 
     # Configuración de logging
