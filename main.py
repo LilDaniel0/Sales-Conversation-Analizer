@@ -63,15 +63,15 @@ def main():
 
         choice = input("Selecciona una opción (1-3): ").strip()
 
-        if choice == "1":
+        if choice == "" or choice == "1":
             result = processor.process_audio_files()
         elif choice == "2":
             result = processor.process_image_files()
         elif choice == "3":
             result = processor.process_all()
         else:
-            print("Opción inválida.")
-            return 1
+            print("Opción inválida. Procesando archivos de audio por defecto.")
+            result = processor.process_audio_files()
 
         # Mostrar resultados
         print("\n=== RESULTADOS ===")

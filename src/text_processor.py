@@ -166,6 +166,7 @@ class WhatsAppTextProcessor:
         transcription_text: str,
         timestamp: datetime,
         sender: str = "Transcripción de Audio",
+        audio_filename: Optional[str] = None,
     ) -> bool:
         """
         Inserta una transcripción en el archivo de texto en la posición correcta.
@@ -174,6 +175,7 @@ class WhatsAppTextProcessor:
             transcription_text: Texto de la transcripción
             timestamp: Timestamp de la transcripción
             sender: Nombre del remitente (por defecto "Transcripción de Audio")
+            audio_filename: Nombre del archivo de audio (opcional)
 
         Returns:
             True si se insertó correctamente, False en caso contrario
@@ -182,8 +184,17 @@ class WhatsAppTextProcessor:
             # Parsear mensajes existentes
             messages = self.parse_whatsapp_format()
 
-            # Encontrar punto de inserción
-            insert_index = self.find_insertion_point(timestamp, messages)
+            # Si se proporciona el nombre del archivo de audio, buscar punto de inserción por nombre
+            if audio_filename:
+                filename_index = self.find_transcription_insertion_point_by_filename(audio_filename)
+                if filename_index is not None:
+                    insert_index = filename_index + 1
+                else:
+                    # Si no se encuentra por nombre, usar el timestamp
+                    insert_index = self.find_insertion_point(timestamp, messages)
+            else:
+                # Sin nombre de archivo, usar el timestamp
+                insert_index = self.find_insertion_point(timestamp, messages)
 
             # Crear nueva línea de mensaje en formato WhatsApp
             date_str = timestamp.strftime("%d/%m/%Y")
@@ -228,7 +239,7 @@ class WhatsAppTextProcessor:
         Inserta múltiples transcripciones en el archivo.
 
         Args:
-            transcriptions: Lista de diccionarios con 'text', 'timestamp' y opcionalmente 'sender'
+            transcriptions: Lista de diccionarios con 'text', 'timestamp', 'audio_filename' y opcionalmente 'sender'
 
         Returns:
             Número de transcripciones insertadas exitosamente
@@ -242,9 +253,10 @@ class WhatsAppTextProcessor:
             text = transcription.get("text", "")
             timestamp = transcription.get("timestamp")
             sender = transcription.get("sender", "Transcripción de Audio")
+            audio_filename = transcription.get("audio_filename")
 
             if text and timestamp:
-                if self.insert_transcription(text, timestamp, sender):
+                if self.insert_transcription(text, timestamp, sender, audio_filename):
                     success_count += 1
 
         logger.info(f"Insertadas {success_count}/{len(transcriptions)} transcripciones")
@@ -310,6 +322,32 @@ class WhatsAppTextProcessor:
                 results.append(message)
 
         return results
+
+    def find_transcription_insertion_point_by_filename(
+        self, audio_filename: str
+    ) -> Optional[int]:
+        """
+        Encuentra la posición de inserción de una transcripción basada en el nombre del archivo de audio.
+
+        Args:
+            audio_filename: Nombre del archivo de audio a buscar
+
+        Returns:
+            Índice de la línea de mensaje que contiene el nombre del archivo de audio, 
+            o None si no se encuentra
+        """
+        try:
+            filename_with_text = f"{audio_filename} (archivo adjunto)"
+            messages = self.parse_whatsapp_format()
+
+            for i, message in enumerate(messages):
+                if filename_with_text in message["content"]:
+                    return i
+
+            return None
+        except Exception as e:
+            logger.error(f"Error al buscar punto de inserción por nombre de archivo: {e}")
+            return None
 
 
 def test_text_processor():

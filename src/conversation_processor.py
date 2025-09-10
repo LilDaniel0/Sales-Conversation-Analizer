@@ -7,7 +7,6 @@ from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from datetime import datetime
 
-from .timestamp_parser import TimestampParser
 from .whisper_transcriber import WhisperTranscriber
 from .text_processor import WhatsAppTextProcessor
 from .image_processor import ImageProcessor
@@ -37,7 +36,6 @@ class ConversationProcessor:
         self.language = language
         from src.config import Config
 
-        self.timestamp_parser = TimestampParser()
         self.whisper_transcriber = WhisperTranscriber(api_key=Config.OPENAI_API_KEY)
         self.text_processor = WhatsAppTextProcessor(self.text_file_path)
         self.image_processor = ImageProcessor(str(self.input_directory))
@@ -54,47 +52,41 @@ class ConversationProcessor:
         """
         logger.info("Iniciando procesamiento de archivos de audio...")
 
-        # Obtener archivos de audio con timestamps
-        audio_files_with_timestamps = (
-            self.timestamp_parser.get_audio_files_with_timestamps(
-                str(self.input_directory)
-            )
-        )
+        # Obtener archivos de audio
+        audio_files = list(self.input_directory.glob("*.opus"))
 
-        if not audio_files_with_timestamps:
-            logger.warning("No se encontraron archivos de audio con timestamps válidos")
+        if not audio_files:
+            logger.warning("No se encontraron archivos de audio .opus")
             return {"success": False, "message": "No se encontraron archivos de audio"}
 
-        logger.info(f"Encontrados {len(audio_files_with_timestamps)} archivos de audio")
-
-        # Extraer rutas de archivos para transcripción
-        audio_files = [file_path for file_path, _ in audio_files_with_timestamps]
+        logger.info(f"Encontrados {len(audio_files)} archivos de audio")
 
         # Transcribir archivos
         try:
             transcriptions = self.whisper_transcriber.transcribe_multiple(
-                audio_files, self.language
+                [str(file_path) for file_path in audio_files], self.language
             )
 
             # Preparar transcripciones para inserción
             transcriptions_to_insert = []
             successful_transcriptions = 0
 
-            for file_path, timestamp in audio_files_with_timestamps:
-                if file_path in transcriptions:
-                    transcription_data = transcriptions[file_path]
+            for file_path in audio_files:
+                str_file_path = str(file_path)
+                if str_file_path in transcriptions:
+                    transcription_data = transcriptions[str_file_path]
 
                     if "error" not in transcription_data and transcription_data["text"]:
                         # Extraer el nombre del archivo para usar como sender
-                        audio_filename = Path(file_path).name
+                        audio_filename = file_path.name
 
                         transcriptions_to_insert.append(
                             {
                                 "text": transcription_data["text"],
-                                "timestamp": timestamp,
                                 "sender": "Transcripción de Audio",
-                                "audio_file": file_path,
+                                "audio_file": str_file_path,
                                 "audio_filename": audio_filename,
+                                "timestamp": datetime.now(),
                                 "language": transcription_data.get(
                                     "language", "unknown"
                                 ),
@@ -103,7 +95,7 @@ class ConversationProcessor:
                         successful_transcriptions += 1
                     else:
                         logger.error(
-                            f"Error en transcripción de {Path(file_path).name}: "
+                            f"Error en transcripción de {file_path.name}: "
                             f"{transcription_data.get('error', 'Texto vacío')}"
                         )
 
@@ -115,7 +107,7 @@ class ConversationProcessor:
 
                 result = {
                     "success": True,
-                    "total_audio_files": len(audio_files_with_timestamps),
+                    "total_audio_files": len(audio_files),
                     "successful_transcriptions": successful_transcriptions,
                     "inserted_transcriptions": inserted_count,
                     "transcriptions": transcriptions_to_insert,
@@ -207,9 +199,7 @@ class ConversationProcessor:
             Diccionario con información del estado
         """
         # Contar archivos de audio
-        audio_files = self.timestamp_parser.get_audio_files_with_timestamps(
-            str(self.input_directory)
-        )
+        audio_files = list(self.input_directory.glob("*.opus"))
 
         # Contar imágenes
         image_files = self.image_processor.get_image_files()
@@ -245,12 +235,10 @@ class ConversationProcessor:
             errors.append(f"Archivo de texto no existe: {self.text_file_path}")
 
         # Verificar que hay archivos de audio
-        audio_files = self.timestamp_parser.get_audio_files_with_timestamps(
-            str(self.input_directory)
-        )
+        audio_files = list(self.input_directory.glob("*.opus"))
         if not audio_files:
             errors.append(
-                "No se encontraron archivos de audio .opus con timestamps válidos"
+                "No se encontraron archivos de audio .opus"
             )
 
         return len(errors) == 0, errors
