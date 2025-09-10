@@ -169,64 +169,38 @@ class WhatsAppTextProcessor:
         audio_filename: Optional[str] = None,
     ) -> bool:
         """
-        Inserta una transcripción en el archivo de texto en la posición correcta.
+        Reemplaza la mención del archivo de audio con su transcripción.
 
         Args:
             transcription_text: Texto de la transcripción
-            timestamp: Timestamp de la transcripción
-            sender: Nombre del remitente (por defecto "Transcripción de Audio")
-            audio_filename: Nombre del archivo de audio (opcional)
+            timestamp: No se usa (mantenido por compatibilidad)
+            sender: No se usa (mantenido por compatibilidad)
+            audio_filename: Nombre del archivo de audio
 
         Returns:
-            True si se insertó correctamente, False en caso contrario
+            True si se reemplazó correctamente, False en caso contrario
         """
         try:
-            # Parsear mensajes existentes
-            messages = self.parse_whatsapp_format()
+            if not audio_filename:
+                logger.error("No se proporcionó nombre de archivo de audio")
+                return False
 
-            # Si se proporciona el nombre del archivo de audio, buscar punto de inserción por nombre
-            if audio_filename:
-                filename_index = self.find_transcription_insertion_point_by_filename(audio_filename)
-                if filename_index is not None:
-                    insert_index = filename_index + 1
-                else:
-                    # Si no se encuentra por nombre, usar el timestamp
-                    insert_index = self.find_insertion_point(timestamp, messages)
-            else:
-                # Sin nombre de archivo, usar el timestamp
-                insert_index = self.find_insertion_point(timestamp, messages)
+            filename_with_text = f"{audio_filename} (archivo adjunto)"
 
-            # Crear nueva línea de mensaje en formato WhatsApp
-            date_str = timestamp.strftime("%d/%m/%Y")
-            hour = timestamp.hour
-            minute = timestamp.minute
+            # Buscar y reemplazar la mención del archivo
+            for i, line in enumerate(self.lines):
+                if filename_with_text in line:
+                    # Reemplazar solo la mención, manteniendo el resto de la línea
+                    self.lines[i] = line.replace(filename_with_text, transcription_text)
+                    
+                    # Guardar archivo actualizado
+                    self._save_text_file()
 
-            # Convertir a formato 12 horas
-            if hour == 0:
-                time_12h = f"12:{minute:02d} a.m."
-            elif hour < 12:
-                time_12h = f"{hour}:{minute:02d} a.m."
-            elif hour == 12:
-                time_12h = f"12:{minute:02d} p.m."
-            else:
-                time_12h = f"{hour-12}:{minute:02d} p.m."
+                    logger.info(f"Transcripción reemplazada en línea {i + 1}")
+                    return True
 
-            new_line = f"{date_str}, {time_12h} - {sender}: {transcription_text}\n"
-
-            # Insertar en la posición correcta
-            if insert_index < len(messages):
-                # Insertar antes del mensaje en insert_index
-                target_line = messages[insert_index]["line_number"] - 1
-                self.lines.insert(target_line, new_line)
-            else:
-                # Insertar al final
-                self.lines.append(new_line)
-
-            # Guardar archivo actualizado
-            self._save_text_file()
-
-            logger.info(f"Transcripción insertada en línea {insert_index + 1}")
-            return True
+            logger.warning(f"No se encontró la mención del archivo {audio_filename}")
+            return False
 
         except Exception as e:
             logger.error(f"Error al insertar transcripción: {e}")
