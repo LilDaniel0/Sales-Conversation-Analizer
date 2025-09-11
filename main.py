@@ -127,6 +127,7 @@ def main():
 
             if "audio_processing" in result:
                 audio = result["audio_processing"]
+
                 print(
                     f"📝 Transcripciones insertadas: {audio.get('inserted_transcriptions', 0)}"
                 )
@@ -148,7 +149,8 @@ def main():
                     f"  Imágenes: {result['image_processing'].get('message', 'Error desconocido')}"
                 )
             return 1
-
+        # Renombrar el archivo de texto final
+        postprocess_whatsapp_export()
         print(f"\nArchivo de texto actualizado: {text_file}")
         print("¡Proceso completado!")
 
