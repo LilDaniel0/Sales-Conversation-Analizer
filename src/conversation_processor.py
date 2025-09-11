@@ -80,16 +80,23 @@ class ConversationProcessor:
                         # Extraer el nombre del archivo para usar como sender
                         audio_filename = file_path.name
 
+                        # Find the line number for insertion
+                        insertion_point = self.text_processor.find_transcription_insertion_point_by_filename(
+                            audio_filename
+                        )
+
                         transcriptions_to_insert.append(
                             {
                                 "text": transcription_data["text"],
-                                "sender": "Transcripción de Audio",
-                                "audio_file": str_file_path,
-                                "audio_filename": audio_filename,
-                                "timestamp": datetime.now(),
-                                "language": transcription_data.get(
-                                    "language", "unknown"
+                                "timestamp": (
+                                    datetime.now()
+                                    if insertion_point is None
+                                    else self.text_processor.parse_whatsapp_format()[
+                                        insertion_point
+                                    ]["timestamp"]
                                 ),
+                                "audio_filename": audio_filename,
+                                "sender": "Transcripción de Audio",
                             }
                         )
                         successful_transcriptions += 1
@@ -237,8 +244,6 @@ class ConversationProcessor:
         # Verificar que hay archivos de audio
         audio_files = list(self.input_directory.glob("*.opus"))
         if not audio_files:
-            errors.append(
-                "No se encontraron archivos de audio .opus"
-            )
+            errors.append("No se encontraron archivos de audio .opus")
 
         return len(errors) == 0, errors
