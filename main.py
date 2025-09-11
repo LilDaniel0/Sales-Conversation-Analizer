@@ -3,9 +3,66 @@ Script principal para el procesador de conversaciones de WhatsApp.
 """
 
 import sys
+import os
+import shutil
+import zipfile
 from pathlib import Path
 from src.conversation_processor import ConversationProcessor
 from src.config import Config
+
+
+def preprocess_whatsapp_export():
+    """Preprocess WhatsApp chat export."""
+    input_dir = Path("input_data")
+    output_dir = Path("output_data")
+    whatsapp_chats_dir = input_dir / "whatsapp_chats"
+
+    zip_files = list(input_dir.glob("*.zip"))
+    if not zip_files:
+        print("No .zip file found in input_data directory.")
+        return False
+
+    zip_file = zip_files[0]
+    print(f"Found zip file: {zip_file.name}")
+
+    # Create whatsapp_chats directory
+    whatsapp_chats_dir.mkdir()
+
+    # Extract zip contents
+    try:
+        with zipfile.ZipFile(zip_file, "r") as zip_ref:
+            # First, find the root folder in the zip
+            root_folders = set(
+                name.split("/")[0] for name in zip_ref.namelist() if "/" in name
+            )
+
+            if not root_folders:
+                print("No folder found in the zip file.")
+                return False
+
+            # Extract contents to a temporary subfolder first
+            zip_ref.extractall(whatsapp_chats_dir)
+
+    except Exception as e:
+        print(f"Error during zip extraction: {e}")
+        return False
+
+    # Find .text file
+    text_files = list(whatsapp_chats_dir.glob("*.text"))
+    if not text_files:
+        print("No .text file found in whatsapp_chats directory.")
+        return False
+
+    # Rename .text file
+    original_text_file = text_files[0]
+    chat_text_file = whatsapp_chats_dir / "chat.text"
+    original_text_file.rename(chat_text_file)
+
+    # Copy to output_data
+    output_file = output_dir / "chat.text"
+    shutil.copy(chat_text_file, output_file)
+
+    return True
 
 
 def main():
@@ -15,6 +72,11 @@ def main():
         "Este programa transcribe audios de WhatsApp y los inserta en el archivo de texto."
     )
     print()
+
+    # Preprocesar archivos
+    if not preprocess_whatsapp_export():
+        print("Error en el preprocesamiento. Deteniendo el programa.")
+        return 1
 
     # Cargar configuración
     Config.print_config()
