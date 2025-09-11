@@ -15,7 +15,10 @@ def preprocess_whatsapp_export():
     """Preprocess WhatsApp chat export."""
     input_dir = Path("input_data")
     output_dir = Path("output_data")
-    whatsapp_chats_dir = input_dir / "whatsapp_chats"
+    extract_dir = input_dir / "whatsapp_chats"
+
+    # Crear la carpeta de extracción si no existe
+    extract_dir.mkdir(parents=True, exist_ok=True)
 
     zip_files = list(input_dir.glob("*.zip"))
     if not zip_files:
@@ -25,42 +28,24 @@ def preprocess_whatsapp_export():
     zip_file = zip_files[0]
     print(f"Found zip file: {zip_file.name}")
 
-    # Create whatsapp_chats directory
-    whatsapp_chats_dir.mkdir()
+    # Descomprimir el zip en whatsapp_chats
+    with zipfile.ZipFile(zip_file, "r") as zf:
+        zf.extractall(extract_dir)
+        print(f"Extracted {zip_file.name} to {extract_dir.resolve()}")
 
-    # Extract zip contents
-    try:
-        with zipfile.ZipFile(zip_file, "r") as zip_ref:
-            # First, find the root folder in the zip
-            root_folders = set(
-                name.split("/")[0] for name in zip_ref.namelist() if "/" in name
-            )
-
-            if not root_folders:
-                print("No folder found in the zip file.")
-                return False
-
-            # Extract contents to a temporary subfolder first
-            zip_ref.extractall(whatsapp_chats_dir)
-
-    except Exception as e:
-        print(f"Error during zip extraction: {e}")
-        return False
-
-    # Find .text file
-    text_files = list(whatsapp_chats_dir.glob("*.text"))
+    text_files = list(extract_dir.glob("*.txt"))
     if not text_files:
-        print("No .text file found in whatsapp_chats directory.")
+        print("No .txt file found in extracted directory.")
         return False
 
-    # Rename .text file
-    original_text_file = text_files[0]
-    chat_text_file = whatsapp_chats_dir / "chat.text"
-    original_text_file.rename(chat_text_file)
+    # Rename text file to chat.txt
+    text_file = text_files[0]
+    text_file.rename(extract_dir / "chat.txt")
+    print(f"Renamed {text_file.name} to chat.txt")
 
-    # Copy to output_data
-    output_file = output_dir / "chat.text"
-    shutil.copy(chat_text_file, output_file)
+    # copiar chat.txt a output_data
+    shutil.copy(extract_dir / "chat.txt", output_dir / "chat.txt")
+    print(f"Copied chat.txt to {output_dir.resolve()}")
 
     return True
 
@@ -175,6 +160,27 @@ def main():
         return 1
 
     return 0
+
+
+def postprocess_whatsapp_export():
+    input_dir = Path("input_data")
+    output_dir = Path("output_data")
+
+    # Buscar archivo zip
+    zip_files = list(input_dir.glob("*.zip"))
+    zip_file = zip_files[0]
+
+    # Buscar archivo txt
+    txt_files = list(output_dir.glob("*.txt"))
+    text_file = txt_files[0]
+
+    # Renombrar
+    new_name = output_dir / f"{zip_file.stem}.txt"
+
+    text_file.rename(new_name)
+    print(f"Text file renamed to: {new_name.name}")
+
+    return True
 
 
 if __name__ == "__main__":
