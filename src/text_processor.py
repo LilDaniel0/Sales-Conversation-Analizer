@@ -191,8 +191,11 @@ class WhatsAppTextProcessor:
             for i, line in enumerate(self.lines):
                 if filename_with_text in line:
                     # Reemplazar solo la mención, manteniendo el resto de la línea
-                    self.lines[i] = line.replace(filename_with_text, transcription_text)
-                    
+                    self.lines[i] = line.replace(
+                        filename_with_text,
+                        f"Transcripción de audio: {transcription_text}",
+                    )
+
                     # Guardar archivo actualizado
                     self._save_text_file()
 
@@ -307,7 +310,7 @@ class WhatsAppTextProcessor:
             audio_filename: Nombre del archivo de audio a buscar
 
         Returns:
-            Índice de la línea de mensaje que contiene el nombre del archivo de audio, 
+            Índice de la línea de mensaje que contiene el nombre del archivo de audio,
             o None si no se encuentra
         """
         try:
@@ -320,7 +323,9 @@ class WhatsAppTextProcessor:
 
             return None
         except Exception as e:
-            logger.error(f"Error al buscar punto de inserción por nombre de archivo: {e}")
+            logger.error(
+                f"Error al buscar punto de inserción por nombre de archivo: {e}"
+            )
             return None
 
 
