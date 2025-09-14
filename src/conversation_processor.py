@@ -215,12 +215,9 @@ class ConversationProcessor:
         message_count = self.text_processor.get_message_count()
 
         return {
-            "audio_files_found": len(audio_files),
-            "image_files_found": len(image_files),
-            "messages_in_text": message_count,
-            "text_file_exists": Path(self.text_file_path).exists(),
-            "input_directory_exists": self.input_directory.exists(),
-            "whisper_model": self.whisper_transcriber.model,
+            "audio files found": len(audio_files),
+            "image files found": len(image_files),
+            "whisper model": self.whisper_transcriber.model,
             "language": self.language,
         }
 
