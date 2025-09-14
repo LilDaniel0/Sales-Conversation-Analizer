@@ -1,3 +1,3 @@
 @echo off
 cd /d "%~dp0"
-cmd /k "uv run python main.py"
+cmd /k "uv run streamlit run app.py"

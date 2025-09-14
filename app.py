@@ -69,7 +69,7 @@ with st.sidebar:
 
 # File upload
 uploaded_file = st.file_uploader("Upload WhatsApp ZIP file", type=["zip"])
-if uploaded_file is not None:
+if uploaded_file is not None and st.session_state.uploaded_zip_name is None:
     zip_name = uploaded_file.name
     zip_path = input_dir / zip_name
     with open(zip_path, "wb") as f:
@@ -77,23 +77,26 @@ if uploaded_file is not None:
     st.session_state.uploaded_zip_name = zip_name
     st.success(f"ZIP file '{zip_name}' saved to input_data.")
 
-# Preprocess step
-if st.session_state.uploaded_zip_name and not st.session_state.preprocess_success:
-    if st.button("Run Preprocess"):
-        with st.spinner("Preprocessing ZIP file..."):
-            log_output = io.StringIO()
-            with redirect_stdout(log_output):
-                success = preprocess_whatsapp_export()
-            st.session_state.logs["preprocess"] = log_output.getvalue()
-            st.session_state.preprocess_success = success
-            if success:
-                st.success("Preprocessing completed!")
-            else:
-                st.error("Preprocessing failed. Check logs.")
+    # Automatic preprocess
+    with st.spinner("Preprocessing ZIP file automatically..."):
+        log_output = io.StringIO()
+        with redirect_stdout(log_output):
+            success = preprocess_whatsapp_export()
+        st.session_state.logs["preprocess"] = log_output.getvalue()
+        st.session_state.preprocess_success = success
+        if success:
+            st.success("Preprocessing completed automatically!")
+        else:
+            st.error("Preprocessing failed. Check logs.")
 
 if st.session_state.preprocess_success:
-    with st.expander("Preprocessing Logs", expanded=True):
-        st.text_area("Logs:", st.session_state.logs["preprocess"], height=200)
+    with st.expander("Preprocessing Logs", expanded=False):
+        st.text_area(
+            "Logs:",
+            st.session_state.logs["preprocess"],
+            height=200,
+            key="preprocess_logs",
+        )
 
     # UI for choice (replace input())
     st.subheader("Select Processing Option")
@@ -102,16 +105,18 @@ if st.session_state.preprocess_success:
         "2: Image files only",
         "3: All (audio and images)",
     ]
-    selected_choice = st.radio(
+    selected = st.radio(
         "What do you want to process?", choice_options, key="choice_radio"
     )
-    st.session_state.choice = selected_choice.split(":")[0]
+    st.session_state.choice = selected.split(":")[0]
 
     if st.button("Run Main Analysis"):
+        st.write("Starting analysis...")
         with st.spinner(
             "Running analysis... This may take a while for transcriptions."
         ):
             progress_bar = st.progress(0)
+            progress_bar.progress(0.1)
             log_output = io.StringIO()
             with redirect_stdout(log_output):
                 # Replicate main logic after preprocess
@@ -125,6 +130,8 @@ if st.session_state.preprocess_success:
                         print(f"  - {error}")
                     st.session_state.main_result = None
                 else:
+                    progress_bar.progress(0.2)
+
                     # Use fixed paths: input_directory = input_data/whatsapp_chats (after extract), text_file = output_data/chat.txt
                     media_dir = input_dir / "whatsapp_chats"
                     text_file_path = output_dir / "chat.txt"
@@ -138,12 +145,14 @@ if st.session_state.preprocess_success:
                         text_file_path=str(text_file_path),
                         language=language,
                     )
+                    progress_bar.progress(0.3)
 
                     # Summary
                     print("\nProcessing summary:")
                     summary = processor.get_processing_summary()
                     for key, value in summary.items():
                         print(f"  {key}: {value}")
+                    progress_bar.progress(0.4)
 
                     # Validate inputs
                     is_valid, errors = processor.validate_inputs()
@@ -153,6 +162,9 @@ if st.session_state.preprocess_success:
                             print(f"  - {error}")
                         st.session_state.main_result = None
                     else:
+                        progress_bar.progress(0.5)
+
+                        # Process based on choice
                         choice = st.session_state.choice
                         if choice == "1":
                             result = processor.process_audio_files()
@@ -163,6 +175,7 @@ if st.session_state.preprocess_success:
                         else:
                             print("Invalid choice, defaulting to audio.")
                             result = processor.process_audio_files()
+                        progress_bar.progress(0.9)
 
                         # Show results
                         print("\n=== RESULTS ===")
@@ -193,9 +206,9 @@ if st.session_state.preprocess_success:
                                 )
 
                         st.session_state.main_result = result
+                        progress_bar.progress(1.0)
 
             st.session_state.logs["main"] = log_output.getvalue()
-            progress_bar.progress(1.0)
 
             if st.session_state.main_result and st.session_state.main_result.get(
                 "success"
@@ -217,8 +230,10 @@ if st.session_state.preprocess_success:
 
 # Display main logs if available
 if st.session_state.main_result:
-    with st.expander("Main Execution Logs", expanded=True):
-        st.text_area("Logs:", st.session_state.logs["main"], height=200)
+    with st.expander("Main Execution Logs", expanded=False):
+        st.text_area(
+            "Logs:", st.session_state.logs["main"], height=200, key="main_logs"
+        )
 
     # Results summary
     if st.session_state.main_result.get("success"):
@@ -234,8 +249,13 @@ if st.session_state.main_result:
             col3.metric("Processed Images", images.get("processed_images", 0))
 
 if st.session_state.postprocess_success and st.session_state.final_file_path:
-    with st.expander("Postprocessing Logs", expanded=True):
-        st.text_area("Logs:", st.session_state.logs["postprocess"], height=100)
+    with st.expander("Postprocessing Logs", expanded=False):
+        st.text_area(
+            "Logs:",
+            st.session_state.logs["postprocess"],
+            height=100,
+            key="postprocess_logs",
+        )
 
     # Download
     final_path = Path(st.session_state.final_file_path)
