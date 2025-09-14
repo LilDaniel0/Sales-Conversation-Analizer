@@ -1,7 +1,5 @@
 import streamlit as st
-import os
-import io
-import zipfile
+import io, sys, contextlib
 import shutil
 from pathlib import Path
 from contextlib import redirect_stdout
@@ -18,15 +16,11 @@ from src.conversation_processor import ConversationProcessor
 
 # Ensure directories exist
 input_dir = Path("input_data")
-input_dir.mkdir(exist_ok=True)
 output_dir = Path("output_data")
-output_dir.mkdir(exist_ok=True)
 
 # Streamlit app
-st.title("🗨️ WhatsApp Export Analyzer")
-st.write(
-    "Upload a WhatsApp ZIP export to transcribe audios and process images interactively."
-)
+st.title("🗨️ WhatsApp Conversation Analyzer")
+st.write("Upload a WhatsApp ZIP export to transcribe audios and get an Analisis.")
 
 # Session state
 if "uploaded_zip_name" not in st.session_state:
@@ -86,17 +80,49 @@ if uploaded_file is not None and st.session_state.uploaded_zip_name is None:
         st.session_state.preprocess_success = success
         if success:
             st.success("Preprocessing completed automatically!")
+
         else:
             st.error("Preprocessing failed. Check logs.")
 
 if st.session_state.preprocess_success:
-    with st.expander("Preprocessing Logs", expanded=False):
-        st.text_area(
-            "Logs:",
-            st.session_state.logs["preprocess"],
-            height=200,
-            key="preprocess_logs",
-        )
+    st.success("Procesamiento listo ✅")
+    with st.expander("Information", expanded=False):
+        st.caption("Validación y resumen de documentos")
+
+        logs = []  # opcional: colector de logs
+
+        def log(msg):
+            logs.append(str(msg))
+
+        # Validate general config
+        is_valid, errors = Config.validate_config()
+        if not is_valid:
+            st.error("Config inválida")
+            st.write(errors)  # se muestra la lista en el expander
+            st.session_state.main_result = None
+
+            log("Config errors:")
+            for e in errors:
+                log(f"  - {e}")
+
+        else:
+            media_dir = input_dir / "whatsapp_chats"
+            text_file_path = output_dir / "chat.txt"
+            language = Config.WHISPER_LANGUAGE or None
+
+            with st.spinner("Inicializando processor…"):
+                processor = ConversationProcessor(
+                    input_directory=str(media_dir),
+                    text_file_path=str(text_file_path),
+                    language=language,
+                )
+
+            # Documents summary
+            summary = processor.get_processing_summary()
+            log("Documents summary:")
+            for k, v in summary.items():
+                log(f"  {k}: {v}")
+            st.dataframe(summary)  # muestra el dict bonito
 
     # UI for choice (replace input())
     st.subheader("Select Processing Option")
@@ -116,99 +142,119 @@ if st.session_state.preprocess_success:
             "Running analysis... This may take a while for transcriptions."
         ):
             progress_bar = st.progress(0)
-            progress_bar.progress(0.1)
-            log_output = io.StringIO()
-            with redirect_stdout(log_output):
-                # Replicate main logic after preprocess
-                Config.print_config()
+            progress_bar.progress(0.2)
 
-                # Validate config
-                is_valid, errors = Config.validate_config()
-                if not is_valid:
-                    print("\nConfig errors:")
-                    for error in errors:
-                        print(f"  - {error}")
-                    st.session_state.main_result = None
+            # Asegura el dict de logs en session_state
+            if "logs" not in st.session_state:
+                st.session_state.logs = {}
+
+            # --- Expander y placeholders para logs/resultados ---
+            exp = st.expander("Logs de preprocesamiento", expanded=True)
+            with exp:
+                st.caption("Ejecución en vivo de la etapa principal")
+                log_live = st.empty()  # logs en vivo
+                result_container = (
+                    st.container()
+                )  # aquí mostraremos el bloque de "RESULTS" después
+
+            # --- Writer que pinta en vivo en el expander y también guarda en buffer ---
+            class StreamToStreamlit(io.TextIOBase):
+                def __init__(self, placeholder):
+                    self.placeholder = placeholder
+                    self._buf = []
+
+                def write(self, s):
+                    if not s:
+                        return 0
+                    self._buf.append(s)
+                    # actualiza el expander en vivo
+                    self.placeholder.text("".join(self._buf))
+                    return len(s)
+
+                def flush(self):
+                    pass
+
+                def getvalue(self):
+                    return "".join(self._buf)
+
+            live_stream = StreamToStreamlit(log_live)
+            log_buffer = io.StringIO()
+
+            class Tee(io.TextIOBase):
+                """Escribe en dos streams a la vez (en vivo + buffer)."""
+
+                def __init__(self, a, b):
+                    self.a, self.b = a, b
+
+                def write(self, s):
+                    self.a.write(s)
+                    self.b.write(s)
+                    return len(s)
+
+                def flush(self):
+                    if hasattr(self.a, "flush"):
+                        self.a.flush()
+                    if hasattr(self.b, "flush"):
+                        self.b.flush()
+
+            tee = Tee(live_stream, log_buffer)
+
+            # ayuda a que los prints salgan línea a línea
+            try:
+                sys.stdout.reconfigure(line_buffering=True)
+                sys.stderr.reconfigure(line_buffering=True)
+            except Exception:
+                pass
+
+            # --- Ejecuta el procesamiento capturando stdout/stderr ---
+            with contextlib.redirect_stdout(tee), contextlib.redirect_stderr(tee):
+                choice = st.session_state.choice
+                if choice == "1":
+                    result = processor.process_audio_files()
+                elif choice == "2":
+                    result = processor.process_image_files()
+                elif choice == "3":
+                    result = processor.process_all()
                 else:
-                    progress_bar.progress(0.2)
+                    print("Invalid choice, defaulting to audio.", flush=True)
+                    result = processor.process_audio_files()
 
-                    # Use fixed paths: input_directory = input_data/whatsapp_chats (after extract), text_file = output_data/chat.txt
-                    media_dir = input_dir / "whatsapp_chats"
-                    text_file_path = output_dir / "chat.txt"
-                    language = (
-                        Config.WHISPER_LANGUAGE if Config.WHISPER_LANGUAGE else None
-                    )
+                progress_bar.progress(0.8)
 
-                    print(f"\nInitializing processor...")
-                    processor = ConversationProcessor(
-                        input_directory=str(media_dir),
-                        text_file_path=str(text_file_path),
-                        language=language,
-                    )
-                    progress_bar.progress(0.3)
-
-                    # Summary
-                    print("\nProcessing summary:")
-                    summary = processor.get_processing_summary()
-                    for key, value in summary.items():
-                        print(f"  {key}: {value}")
-                    progress_bar.progress(0.4)
-
-                    # Validate inputs
-                    is_valid, errors = processor.validate_inputs()
-                    if not is_valid:
-                        print("\nValidation errors:")
-                        for error in errors:
-                            print(f"  - {error}")
-                        st.session_state.main_result = None
+            # --- Muestra resultados DENTRO del expander (como ya lo tenías) ---
+            with exp:
+                with result_container:
+                    st.text("\n=== RESULTS ===")
+                    if result.get("success", False):
+                        st.text("✅ Processing completed successfully!")
+                        if "audio_processing" in result:
+                            audio = result["audio_processing"]
+                            st.text(
+                                f"📝 Inserted transcriptions: {audio.get('inserted_transcriptions', 0)}"
+                            )
+                            st.text(
+                                f"🎵 Processed audios: {audio.get('successful_transcriptions', 0)}"
+                            )
+                        if "image_processing" in result:
+                            images = result["image_processing"]
+                            st.text(
+                                f"🖼️ Processed images: {images.get('processed_images', 0)}"
+                            )
                     else:
-                        progress_bar.progress(0.5)
+                        st.text("❌ Processing error:")
+                        if "audio_processing" in result:
+                            st.text(
+                                f"  Audio: {result['audio_processing'].get('message', 'Unknown error')}"
+                            )
+                        if "image_processing" in result:
+                            st.text(
+                                f"  Images: {result['image_processing'].get('message', 'Unknown error')}"
+                            )
 
-                        # Process based on choice
-                        choice = st.session_state.choice
-                        if choice == "1":
-                            result = processor.process_audio_files()
-                        elif choice == "2":
-                            result = processor.process_image_files()
-                        elif choice == "3":
-                            result = processor.process_all()
-                        else:
-                            print("Invalid choice, defaulting to audio.")
-                            result = processor.process_audio_files()
-                        progress_bar.progress(0.9)
-
-                        # Show results
-                        print("\n=== RESULTS ===")
-                        if result.get("success", False):
-                            print("✅ Processing completed successfully!")
-                            if "audio_processing" in result:
-                                audio = result["audio_processing"]
-                                print(
-                                    f"📝 Inserted transcriptions: {audio.get('inserted_transcriptions', 0)}"
-                                )
-                                print(
-                                    f"🎵 Processed audios: {audio.get('successful_transcriptions', 0)}"
-                                )
-                            if "image_processing" in result:
-                                images = result["image_processing"]
-                                print(
-                                    f"🖼️ Processed images: {images.get('processed_images', 0)}"
-                                )
-                        else:
-                            print("❌ Processing error:")
-                            if "audio_processing" in result:
-                                print(
-                                    f"  Audio: {result['audio_processing'].get('message', 'Unknown error')}"
-                                )
-                            if "image_processing" in result:
-                                print(
-                                    f"  Images: {result['image_processing'].get('message', 'Unknown error')}"
-                                )
-
-                        st.session_state.main_result = result
-                        progress_bar.progress(1.0)
-
-            st.session_state.logs["main"] = log_output.getvalue()
+            # Guarda el log completo en session_state (como ya hacías)
+            st.session_state.main_result = result
+            st.session_state.logs["main"] = log_buffer.getvalue()
+            progress_bar.progress(1.0)
 
             if st.session_state.main_result and st.session_state.main_result.get(
                 "success"
