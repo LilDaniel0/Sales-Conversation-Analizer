@@ -79,13 +79,13 @@ if uploaded_file is not None and st.session_state.uploaded_zip_name is None:
         st.session_state.logs["preprocess"] = log_output.getvalue()
         st.session_state.preprocess_success = success
         if success:
-            st.success("Preprocessing completed automatically!")
+            st.success("Preprocesamiento listo! ✅")
 
         else:
             st.error("Preprocessing failed. Check logs.")
 
 if st.session_state.preprocess_success:
-    st.success("Procesamiento listo ✅")
+
     with st.expander("Information", expanded=False):
         st.caption("Validación y resumen de documentos")
 
