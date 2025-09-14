@@ -3,7 +3,6 @@ Script principal para el procesador de conversaciones de WhatsApp.
 """
 
 import sys
-import os
 import shutil
 import zipfile
 from pathlib import Path
