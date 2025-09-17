@@ -23,9 +23,3 @@ input_data/
 # OS files
 .DS_Store
 Thumbs.db
-
-# IDE
-.vscode/
-.idea/
-*.swp
-*.swo
