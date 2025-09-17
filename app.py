@@ -40,16 +40,39 @@ if "choice" not in st.session_state:
 
 # Sidebar for clear/restart
 with st.sidebar:
-    if st.button("Clear and Restart"):
-        # Clear input_data contents
-        for item in input_dir.iterdir():
+    if st.button("Clear"):
+        # Debug logging for input_dir
+        print(f"[DEBUG] input_dir path: {input_dir}")
+        print(f"[DEBUG] input_dir exists: {input_dir.exists()}")
+        if input_dir.exists():
+            print(f"[DEBUG] input_dir is_dir: {input_dir.is_dir()}")
+            print(f"[DEBUG] input_dir is_file: {input_dir.is_file()}")
+            try:
+                # Check permissions by attempting to list
+                items = list(input_dir.iterdir())
+                print(f"[DEBUG] Successfully listed {len(items)} items in input_dir")
+            except Exception as e:
+                print(f"[DEBUG] iterdir() failed: {type(e).__name__}: {e}")
+                items = []
+        else:
+            print("[DEBUG] input_dir does not exist - skipping clear")
+            items = []
+
+        # Clear input_data contents if possible
+        for item in items:
             if item.is_file():
                 item.unlink()
             elif item.is_dir():
                 shutil.rmtree(item, ignore_errors=True)
-        # Clear output_data TXT files
-        for txt in output_dir.glob("*.txt"):
+
+        # Clear output_data TXT files (similar debug could be added if needed)
+        print(f"[DEBUG] output_dir path: {output_dir}")
+        print(f"[DEBUG] output_dir exists: {output_dir.exists()}")
+        txt_files = list(output_dir.glob("*.txt"))
+        for txt in txt_files:
             txt.unlink()
+        print(f"[DEBUG] Cleared {len(txt_files)} TXT files from output_dir")
+
         # Reset session state
         st.session_state.preprocess_success = False
         st.session_state.main_result = None
