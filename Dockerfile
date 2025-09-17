@@ -11,7 +11,7 @@ WORKDIR /Sales-Conversation-Analizer
 COPY pyproject.toml .
 
 RUN pip install --no-cache-dir uv
-RUN uv sync --frozen --no-install-project
+RUN uv sync
 
 COPY . .
 
