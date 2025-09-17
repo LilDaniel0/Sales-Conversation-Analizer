@@ -41,21 +41,15 @@ if "choice" not in st.session_state:
 # Sidebar for clear/restart
 with st.sidebar:
     if st.button("Clear"):
-        # Debug logging for input_dir
-        print(f"[DEBUG] input_dir path: {input_dir}")
-        print(f"[DEBUG] input_dir exists: {input_dir.exists()}")
         if input_dir.exists():
-            print(f"[DEBUG] input_dir is_dir: {input_dir.is_dir()}")
-            print(f"[DEBUG] input_dir is_file: {input_dir.is_file()}")
             try:
                 # Check permissions by attempting to list
                 items = list(input_dir.iterdir())
-                print(f"[DEBUG] Successfully listed {len(items)} items in input_dir")
             except Exception as e:
-                print(f"[DEBUG] iterdir() failed: {type(e).__name__}: {e}")
+                st.error(f"Error accessing input_dir: {e}")
                 items = []
         else:
-            print("[DEBUG] input_dir does not exist - skipping clear")
+            st.error("input_dir does not exist - skipping clear")
             items = []
 
         # Clear input_data contents if possible
@@ -65,13 +59,9 @@ with st.sidebar:
             elif item.is_dir():
                 shutil.rmtree(item, ignore_errors=True)
 
-        # Clear output_data TXT files (similar debug could be added if needed)
-        print(f"[DEBUG] output_dir path: {output_dir}")
-        print(f"[DEBUG] output_dir exists: {output_dir.exists()}")
         txt_files = list(output_dir.glob("*.txt"))
         for txt in txt_files:
             txt.unlink()
-        print(f"[DEBUG] Cleared {len(txt_files)} TXT files from output_dir")
 
         # Reset session state
         st.session_state.preprocess_success = False
@@ -92,7 +82,6 @@ if uploaded_file is not None and st.session_state.uploaded_zip_name is None:
     with open(zip_path, "wb") as f:
         f.write(uploaded_file.getvalue())
     st.session_state.uploaded_zip_name = zip_name
-    st.success(f"ZIP file '{zip_name}' saved to input_data.")
 
     # Automatic preprocess
     with st.spinner("Preprocessing ZIP file automatically..."):
@@ -171,83 +160,27 @@ if st.session_state.preprocess_success:
             if "logs" not in st.session_state:
                 st.session_state.logs = {}
 
+            choice = st.session_state.choice
+            if choice == "1":
+                result = processor.process_audio_files()
+            elif choice == "2":
+                result = processor.process_image_files()
+            elif choice == "3":
+                result = processor.process_all()
+            else:
+                print("Invalid choice, defaulting to audio.", flush=True)
+                result = processor.process_audio_files()
+            progress_bar.progress(0.8)
+
             # --- Expander y placeholders para logs/resultados ---
             exp = st.expander("Logs de preprocesamiento", expanded=True)
+
             with exp:
-                st.caption("Ejecución en vivo de la etapa principal")
-                log_live = st.empty()  # logs en vivo
                 result_container = (
                     st.container()
                 )  # aquí mostraremos el bloque de "RESULTS" después
-
-            # --- Writer que pinta en vivo en el expander y también guarda en buffer ---
-            class StreamToStreamlit(io.TextIOBase):
-                def __init__(self, placeholder):
-                    self.placeholder = placeholder
-                    self._buf = []
-
-                def write(self, s):
-                    if not s:
-                        return 0
-                    self._buf.append(s)
-                    # actualiza el expander en vivo
-                    self.placeholder.text("".join(self._buf))
-                    return len(s)
-
-                def flush(self):
-                    pass
-
-                def getvalue(self):
-                    return "".join(self._buf)
-
-            live_stream = StreamToStreamlit(log_live)
-            log_buffer = io.StringIO()
-
-            class Tee(io.TextIOBase):
-                """Escribe en dos streams a la vez (en vivo + buffer)."""
-
-                def __init__(self, a, b):
-                    self.a, self.b = a, b
-
-                def write(self, s):
-                    self.a.write(s)
-                    self.b.write(s)
-                    return len(s)
-
-                def flush(self):
-                    if hasattr(self.a, "flush"):
-                        self.a.flush()
-                    if hasattr(self.b, "flush"):
-                        self.b.flush()
-
-            tee = Tee(live_stream, log_buffer)
-
-            # ayuda a que los prints salgan línea a línea
-            try:
-                sys.stdout.reconfigure(line_buffering=True)
-                sys.stderr.reconfigure(line_buffering=True)
-            except Exception:
-                pass
-
-            # --- Ejecuta el procesamiento capturando stdout/stderr ---
-            with contextlib.redirect_stdout(tee), contextlib.redirect_stderr(tee):
-                choice = st.session_state.choice
-                if choice == "1":
-                    result = processor.process_audio_files()
-                elif choice == "2":
-                    result = processor.process_image_files()
-                elif choice == "3":
-                    result = processor.process_all()
-                else:
-                    print("Invalid choice, defaulting to audio.", flush=True)
-                    result = processor.process_audio_files()
-
-                progress_bar.progress(0.8)
-
-            # --- Muestra resultados DENTRO del expander (como ya lo tenías) ---
-            with exp:
                 with result_container:
-                    st.text("\n=== RESULTS ===")
+                    st.text("\n RESULTS \n")
                     if result.get("success", False):
                         st.text("✅ Processing completed successfully!")
                         if "audio_processing" in result:
@@ -276,7 +209,6 @@ if st.session_state.preprocess_success:
 
             # Guarda el log completo en session_state (como ya hacías)
             st.session_state.main_result = result
-            st.session_state.logs["main"] = log_buffer.getvalue()
             progress_bar.progress(1.0)
 
             if st.session_state.main_result and st.session_state.main_result.get(
@@ -297,35 +229,7 @@ if st.session_state.preprocess_success:
             else:
                 st.error("Analysis failed. Check logs.")
 
-# Display main logs if available
-if st.session_state.main_result:
-    with st.expander("Main Execution Logs", expanded=False):
-        st.text_area(
-            "Logs:", st.session_state.logs["main"], height=200, key="main_logs"
-        )
-
-    # Results summary
-    if st.session_state.main_result.get("success"):
-        col1, col2, col3 = st.columns(3)
-        if "audio_processing" in st.session_state.main_result:
-            audio = st.session_state.main_result["audio_processing"]
-            col1.metric(
-                "Inserted Transcriptions", audio.get("inserted_transcriptions", 0)
-            )
-            col2.metric("Successful Audios", audio.get("successful_transcriptions", 0))
-        if "image_processing" in st.session_state.main_result:
-            images = st.session_state.main_result["image_processing"]
-            col3.metric("Processed Images", images.get("processed_images", 0))
-
 if st.session_state.postprocess_success and st.session_state.final_file_path:
-    with st.expander("Postprocessing Logs", expanded=False):
-        st.text_area(
-            "Logs:",
-            st.session_state.logs["postprocess"],
-            height=100,
-            key="postprocess_logs",
-        )
-
     # Download
     final_path = Path(st.session_state.final_file_path)
     if final_path.exists():
