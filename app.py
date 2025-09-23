@@ -232,21 +232,26 @@ if st.session_state.preprocess_success:
 
 if st.session_state.postprocess_success and st.session_state.final_file_path:
     # Download
+    st.divider()
     final_path = Path(st.session_state.final_file_path)
     if final_path.exists():
         with open(final_path, "r", encoding="utf-8") as f:
             data = f.read()
-        st.subheader("Download Results")
+        st.subheader("Download Results - Analize Conversation")
         st.download_button(
             label="Download Processed Chat",
             data=data,
             file_name=final_path.name,
             mime="text/plain",
         )
-        with st.spinner("Analizando Conversacion"):
-            with st.expander("See explanation"):
+        analizar = st.button("Analizar Conversacion")
+        if analizar:
+            with st.spinner("Analizando Conversacion"):
                 explanation = analizer.analize_conversation(data)
-                st.write(explanation)
+
+            if explanation:
+                with st.expander("See explanation"):
+                    st.write(explanation)
 
 
 # Error displays
