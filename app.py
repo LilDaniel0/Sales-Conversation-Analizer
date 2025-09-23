@@ -3,6 +3,7 @@ import io, sys, contextlib
 import shutil
 from pathlib import Path
 from contextlib import redirect_stdout
+from src import analizer
 
 # Load env
 from dotenv import load_dotenv
@@ -242,6 +243,11 @@ if st.session_state.postprocess_success and st.session_state.final_file_path:
             file_name=final_path.name,
             mime="text/plain",
         )
+        with st.spinner("Analizando Conversacion"):
+            with st.expander("See explanation"):
+                explanation = analizer.analize_conversation(data)
+                st.write(explanation)
+
 
 # Error displays
 if st.session_state.uploaded_zip_name and not st.session_state.preprocess_success:
