@@ -38,6 +38,8 @@ if "final_file_path" not in st.session_state:
     st.session_state.final_file_path = None
 if "choice" not in st.session_state:
     st.session_state.choice = None
+if "clearing" not in st.session_state:
+    st.session_state.clearing = False
 if st.session_state.clearing:
     st.toast("Session cleared! You can upload a new ZIP.", icon="✅")
     st.session_state.clearing = False
