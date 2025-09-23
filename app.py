@@ -38,6 +38,9 @@ if "final_file_path" not in st.session_state:
     st.session_state.final_file_path = None
 if "choice" not in st.session_state:
     st.session_state.choice = None
+if st.session_state.clearing:
+    st.toast("Session cleared! You can upload a new ZIP.", icon="✅")
+    st.session_state.clearing = False
 
 # Sidebar for clear/restart
 with st.sidebar:
@@ -65,6 +68,7 @@ with st.sidebar:
             txt.unlink()
 
         # Reset session state
+        st.session_state.clearing = True
         st.session_state.preprocess_success = False
         st.session_state.main_result = None
         st.session_state.postprocess_success = False
@@ -72,8 +76,8 @@ with st.sidebar:
         st.session_state.final_file_path = None
         st.session_state.choice = None
         st.session_state.uploaded_zip_name = None
-        st.success("Session cleared! You can upload a new ZIP.")
         st.rerun()
+
 
 # File upload
 uploaded_file = st.file_uploader("Upload WhatsApp ZIP file", type=["zip"])
