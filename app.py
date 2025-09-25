@@ -145,11 +145,7 @@ if st.session_state.preprocess_success:
 
     # UI for choice (replace input())
     st.subheader("Select Processing Option")
-    choice_options = [
-        "1: Audio files only",
-        "2: Image files only",
-        "3: All (audio and images)",
-    ]
+    choice_options = ["1: Audio files only"]
     selected = st.radio(
         "What do you want to process?", choice_options, key="choice_radio"
     )
