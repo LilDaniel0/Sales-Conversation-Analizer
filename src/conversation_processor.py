@@ -9,7 +9,6 @@ from datetime import datetime
 
 from .whisper_transcriber import WhisperTranscriber
 from .text_processor import WhatsAppTextProcessor
-from .image_processor import ImageProcessor
 
 # Configurar logging
 logging.basicConfig(
@@ -38,7 +37,6 @@ class ConversationProcessor:
 
         self.whisper_transcriber = WhisperTranscriber(api_key=Config.OPENAI_API_KEY)
         self.text_processor = WhatsAppTextProcessor(self.text_file_path)
-        self.image_processor = ImageProcessor(str(self.input_directory))
         logger.info(f"Procesador inicializado - Directorio: {self.input_directory}")
         logger.info(f"Archivo de texto: {self.text_file_path}")
         logger.info(f"Modelo OpenAI: {self.whisper_transcriber.model}")
@@ -135,69 +133,6 @@ class ConversationProcessor:
             logger.error(f"Error durante el procesamiento de audio: {e}")
             return {"success": False, "message": f"Error: {str(e)}"}
 
-    def process_image_files(self) -> Dict[str, any]:
-        """
-        Procesa archivos de imagen y los referencia en el texto.
-
-        Returns:
-            Diccionario con resultados del procesamiento
-        """
-        logger.info("Iniciando procesamiento de archivos de imagen...")
-
-        try:
-            processed_count = self.image_processor.process_images_for_text_file(
-                self.text_processor
-            )
-
-            result = {"success": True, "processed_images": processed_count}
-
-            logger.info(
-                f"Procesamiento de imágenes completado: {processed_count} imágenes procesadas"
-            )
-            return result
-
-        except Exception as e:
-            logger.error(f"Error durante el procesamiento de imágenes: {e}")
-            return {"success": False, "message": f"Error: {str(e)}"}
-
-    def process_all(self) -> Dict[str, any]:
-        """
-        Procesa todos los archivos (audio e imágenes).
-
-        Returns:
-            Diccionario con resultados completos del procesamiento
-        """
-        logger.info("Iniciando procesamiento completo...")
-
-        # Crear backup del archivo de texto
-        try:
-            backup_path = self.text_processor.create_backup()
-            logger.info(f"Backup creado: {backup_path}")
-        except Exception as e:
-            logger.warning(f"No se pudo crear backup: {e}")
-
-        # Procesar audios
-        audio_result = self.process_audio_files()
-
-        # Procesar imágenes
-        image_result = self.process_image_files()
-
-        # Resultado combinado
-        result = {
-            "success": audio_result.get("success", False)
-            or image_result.get("success", False),
-            "audio_processing": audio_result,
-            "image_processing": image_result,
-            "timestamp": datetime.now().isoformat(),
-        }
-
-        if result["success"]:
-            logger.info("Procesamiento completo exitoso")
-        else:
-            logger.error("Procesamiento completo falló")
-
-        return result
-
     def get_processing_summary(self) -> Dict[str, any]:
         """
         Obtiene un resumen del estado actual del procesamiento.
@@ -208,15 +143,11 @@ class ConversationProcessor:
         # Contar archivos de audio
         audio_files = list(self.input_directory.glob("*.opus"))
 
-        # Contar imágenes
-        image_files = self.image_processor.get_image_files()
-
         # Contar mensajes en el texto
         message_count = self.text_processor.get_message_count()
 
         return {
             "audio files found": len(audio_files),
-            "image files found": len(image_files),
             "whisper model": self.whisper_transcriber.model,
             "language": self.language,
         }

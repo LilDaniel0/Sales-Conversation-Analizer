@@ -170,10 +170,6 @@ if st.session_state.preprocess_success:
             choice = st.session_state.choice
             if choice == "1":
                 result = processor.process_audio_files()
-            elif choice == "2":
-                result = processor.process_image_files()
-            elif choice == "3":
-                result = processor.process_all()
             else:
                 print("Invalid choice, defaulting to audio.", flush=True)
                 result = processor.process_audio_files()
