@@ -237,20 +237,14 @@ if st.session_state.use_multi_mode and st.session_state.processing_jobs:
                         st.json(job_status)
 
                 with col3:
-                    # Download button if completed
+                    # Status indicator only
                     result = st.session_state.processing_results.get(job_id)
-                    if result and result.get("success") and "output_file" in result:
-                        output_path = Path(result["output_file"])
-                        if output_path.exists():
-                            with open(output_path, "r", encoding="utf-8") as f:
-                                data = f.read()
-                            st.download_button(
-                                label="📥 Download",
-                                data=data,
-                                file_name=output_path.name,
-                                mime="text/plain",
-                                key=f"download_{job_id}"
-                            )
+                    if result and result.get("success"):
+                        st.success("✅ Ready")
+                    elif result and not result.get("success"):
+                        st.error("❌ Failed")
+                    else:
+                        st.info("⏳ Pending")
 
                 # Show results if completed
                 if job_id in st.session_state.processing_results:
@@ -275,6 +269,50 @@ if st.session_state.use_multi_mode and st.session_state.processing_jobs:
                                     st.write(explanation)
                     else:
                         st.error(f"❌ Processing failed: {result.get('error', 'Unknown error')}")
+
+    # Multi-file Downloads Section - DEDICATED DOWNLOAD AREA
+    completed_jobs = [
+        (job_id, result) for job_id, result in st.session_state.processing_results.items()
+        if result.get("success")
+    ]
+
+    if completed_jobs:
+        st.divider()
+        st.subheader("📥 Download Results - Completed Files")
+
+        for job_id, result in completed_jobs:
+            if "output_file" in result:
+                output_path = Path(result["output_file"])
+                if output_path.exists():
+                    zip_name = result.get("zip_name", "Unknown")
+
+                    col1, col2, col3 = st.columns([3, 1, 1])
+
+                    with col1:
+                        st.write(f"**{zip_name}** - Processing completed ✅")
+                        if "processing_result" in result and "audio_processing" in result["processing_result"]:
+                            audio_result = result["processing_result"]["audio_processing"]
+                            st.caption(f"🎵 {audio_result.get('successful_transcriptions', 0)} audios processed • 📝 {audio_result.get('inserted_transcriptions', 0)} transcriptions inserted")
+
+                    with col2:
+                        with open(output_path, "r", encoding="utf-8") as f:
+                            data = f.read()
+                        st.download_button(
+                            label="📄 Download Chat",
+                            data=data,
+                            file_name=output_path.name,
+                            mime="text/plain",
+                            key=f"final_download_{job_id}",
+                            use_container_width=True
+                        )
+
+                    with col3:
+                        if st.button(f"🔍 Analyze", key=f"final_analyze_{job_id}", use_container_width=True):
+                            with st.spinner("Analyzing conversation..."):
+                                explanation = analizer.analize_conversation(data)
+                            if explanation:
+                                with st.expander(f"Analysis: {zip_name}", expanded=True):
+                                    st.write(explanation)
 
 # Single-file processing UI (existing)
 elif st.session_state.preprocess_success:
