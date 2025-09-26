@@ -10,6 +10,101 @@ from src.conversation_processor import ConversationProcessor
 from src.config import Config
 
 
+def preprocess_single_zip(zip_path: str, work_dir: Path) -> bool:
+    """
+    Preprocesa un archivo ZIP específico en un directorio de trabajo único.
+
+    Args:
+        zip_path: Ruta al archivo ZIP específico
+        work_dir: Directorio de trabajo único para este archivo
+
+    Returns:
+        True si el preprocesamiento fue exitoso, False en caso contrario
+    """
+    try:
+        zip_file = Path(zip_path)
+        extract_dir = work_dir / "whatsapp_chats"
+        output_dir = Path("output_data")
+
+        # Crear directorios necesarios
+        work_dir.mkdir(parents=True, exist_ok=True)
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        output_dir.mkdir(parents=True, exist_ok=True)
+
+        if not zip_file.exists():
+            print(f"ZIP file not found: {zip_file}")
+            return False
+
+        print(f"Processing ZIP file: {zip_file.name}")
+
+        # Extraer el ZIP
+        with zipfile.ZipFile(zip_file, "r") as zf:
+            zf.extractall(extract_dir)
+            print(f"Extracted {zip_file.name} to {extract_dir.resolve()}")
+
+        # Buscar y renombrar archivo de texto
+        text_files = list(extract_dir.glob("*.txt"))
+        if not text_files:
+            print("No .txt file found in extracted directory.")
+            return False
+
+        text_file = text_files[0]
+        chat_file_path = extract_dir / "chat.txt"
+        text_file.rename(chat_file_path)
+        print(f"Renamed {text_file.name} to chat.txt")
+
+        # Crear nombre único para archivo temporal en output
+        zip_stem = zip_file.stem
+        temp_output_name = f"chat_{zip_stem}_{work_dir.name}.txt"
+        temp_output_path = output_dir / temp_output_name
+
+        # Copiar chat.txt a output_data con nombre temporal único
+        shutil.copy(chat_file_path, temp_output_path)
+        print(f"Copied chat.txt to {temp_output_path}")
+
+        return True
+
+    except Exception as e:
+        print(f"Error in preprocess_single_zip: {e}")
+        return False
+
+
+def postprocess_single_zip(zip_path: str, work_dir: Path, final_output_path: Path) -> bool:
+    """
+    Postprocesa un archivo específico renombrándolo al nombre final.
+
+    Args:
+        zip_path: Ruta al archivo ZIP original
+        work_dir: Directorio de trabajo usado
+        final_output_path: Ruta final donde debe quedar el archivo
+
+    Returns:
+        True si el postprocesamiento fue exitoso, False en caso contrario
+    """
+    try:
+        zip_file = Path(zip_path)
+        output_dir = Path("output_data")
+
+        # Buscar el archivo temporal creado durante el preprocesamiento
+        zip_stem = zip_file.stem
+        temp_output_name = f"chat_{zip_stem}_{work_dir.name}.txt"
+        temp_output_path = output_dir / temp_output_name
+
+        if not temp_output_path.exists():
+            print(f"Temporary file not found: {temp_output_path}")
+            return False
+
+        # Renombrar al archivo final
+        temp_output_path.rename(final_output_path)
+        print(f"Renamed to final file: {final_output_path.name}")
+
+        return True
+
+    except Exception as e:
+        print(f"Error in postprocess_single_zip: {e}")
+        return False
+
+
 def preprocess_whatsapp_export():
     """Preprocess WhatsApp chat export."""
     input_dir = Path("input_data")
