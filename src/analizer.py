@@ -35,3 +35,6 @@ def analize_conversation(text):
     final_response = response.output_text
 
     return final_response
+
+
+adfkjashdkfjhaksdjfhkjda]
